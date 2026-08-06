@@ -18,9 +18,9 @@ import edu.wpi.first.wpilibj.xrp.XRPOnBoardIO;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.PrintCommand;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
-
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
  * "declarative" paradigm, very little robot logic should actually be handled in the {@link Robot}
@@ -34,7 +34,7 @@ public class RobotContainer {
   private final Arm m_arm = new Arm();
 
   // Assumes a gamepad plugged into channel 0
-  private final Joystick m_controller = new Joystick(0);
+  private final CommandXboxController m_controller = new CommandXboxController(0);
 
   // Create SmartDashboard chooser for autonomous routines
   private final SendableChooser<Command> m_chooser = new SendableChooser<>();
@@ -57,24 +57,13 @@ public class RobotContainer {
     m_drivetrain.setDefaultCommand(getArcadeDriveCommand());
 
     // Example of how to use the onboard IO
-    Trigger userButton = new Trigger(m_onboardIO::getUserButtonPressed);
-    userButton
-        .onTrue(new PrintCommand("USER Button Pressed"))
-        .onFalse(new PrintCommand("USER Button Released"));
-
-    JoystickButton joystickAButton = new JoystickButton(m_controller, 1);
-    joystickAButton
-        .onTrue(new InstantCommand(() -> m_arm.setAngle(45.0), m_arm))
-        .onFalse(new InstantCommand(() -> m_arm.setAngle(0.0), m_arm));
-
-    JoystickButton joystickBButton = new JoystickButton(m_controller, 2);
-    joystickBButton
-        .onTrue(new InstantCommand(() -> m_arm.setAngle(90.0), m_arm))
-        .onFalse(new InstantCommand(() -> m_arm.setAngle(0.0), m_arm));
-
+    m_arm.setDefaultCommand(
+        new InstantCommand(
+          () -> {m_arm.setAngle(m_controller.getRightTriggerAxis() * 180);}, m_arm));
     // Setup SmartDashboard options
     m_chooser.setDefaultOption("Auto Routine Distance", new AutonomousDistance(m_drivetrain));
     m_chooser.addOption("Auto Routine Time", new AutonomousTime(m_drivetrain));
+    m_chooser.addOption("Follow line command", m_drivetrain.new followLineCommand());
     SmartDashboard.putData(m_chooser);
   }
 
@@ -94,6 +83,7 @@ public class RobotContainer {
    */
   public Command getArcadeDriveCommand() {
     return new ArcadeDrive(
-        m_drivetrain, () -> -m_controller.getRawAxis(1), () -> -m_controller.getRawAxis(2));
+        m_drivetrain, () -> -m_controller.getLeftY(), () -> -m_controller.getRightX());
   }
+  
 }

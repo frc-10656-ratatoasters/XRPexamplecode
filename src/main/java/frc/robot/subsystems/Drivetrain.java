@@ -8,22 +8,25 @@ import edu.wpi.first.util.sendable.SendableRegistry;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.xrp.XRPGyro;
 import edu.wpi.first.wpilibj.xrp.XRPMotor;
+import edu.wpi.first.wpilibj.xrp.XRPRangefinder;
+import edu.wpi.first.wpilibj.xrp.XRPReflectanceSensor;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-
 public class Drivetrain extends SubsystemBase {
   private static final double kGearRatio =
       (30.0 / 14.0) * (28.0 / 16.0) * (36.0 / 9.0) * (26.0 / 8.0); // 48.75:1
   private static final double kCountsPerMotorShaftRev = 12.0;
   private static final double kCountsPerRevolution = kCountsPerMotorShaftRev * kGearRatio; // 585.0
   private static final double kWheelDiameterInch = 2.3622; // 60 mm
-
+  private final XRPRangefinder m_rangefinder = new XRPRangefinder();
+  private final XRPReflectanceSensor m_reflectance_sensor = new XRPReflectanceSensor();
   // The XRP has the left and right motors set to
   // channels 0 and 1 respectively
   private final XRPMotor m_leftMotor = new XRPMotor(0);
   private final XRPMotor m_rightMotor = new XRPMotor(1);
-
   // The XRP has onboard encoders that are hardcoded
   // to use DIO pins 4/5 and 6/7 for the left and right
   private final Encoder m_leftEncoder = new Encoder(4, 5);
@@ -39,6 +42,7 @@ public class Drivetrain extends SubsystemBase {
   // Set up the BuiltInAccelerometer
   private final BuiltInAccelerometer m_accelerometer = new BuiltInAccelerometer();
 
+  
   /** Creates a new Drivetrain. */
   public Drivetrain() {
     SendableRegistry.addChild(m_diffDrive, m_leftMotor);
@@ -52,34 +56,64 @@ public class Drivetrain extends SubsystemBase {
     // Use inches as unit for encoder distances
     m_leftEncoder.setDistancePerPulse((Math.PI * kWheelDiameterInch) / kCountsPerRevolution);
     m_rightEncoder.setDistancePerPulse((Math.PI * kWheelDiameterInch) / kCountsPerRevolution);
+    SmartDashboard.putNumber("follow line command tolerance", 0.1);
+    SmartDashboard.putNumber("follow line command forward speed", 1);
+    SmartDashboard.putNumber("follow line command turn speed", 1);
+    SmartDashboard.putBoolean("follow line command line darker than floor", true);
     resetEncoders();
   }
-
+  public class followLineCommand extends Command{
+    public followLineCommand() {
+      addRequirements(Drivetrain.this);
+    }
+    @Override
+    public void execute() {
+      double difference = getLeftReflectance() - getRightReflectance();
+      if(Math.abs(difference) < SmartDashboard.getNumber("follow line command tolerance", 0.1)) {
+        if(SmartDashboard.getBoolean("follow line command line darker than floor", true) != (difference > 0)){
+          m_diffDrive.arcadeDrive(0, SmartDashboard.getNumber("follow line command turn speed", 1));
+        }
+        else{
+          m_diffDrive.arcadeDrive(0, -SmartDashboard.getNumber("follow line command turn speed", 1));
+        }
+      }
+      else{
+        m_diffDrive.arcadeDrive(SmartDashboard.getNumber("follow line command forward speed", 1), 0);
+      }
+    }
+  }
   public void arcadeDrive(double xaxisSpeed, double zaxisRotate) {
     m_diffDrive.arcadeDrive(xaxisSpeed, zaxisRotate);
+  }
+  
+  public double getRangefinderDistanceInch() {
+    return m_rangefinder.getDistanceInches();
+  }
+  
+  public double getLeftReflectance() {//between 0 (white) and 1 (black)
+    return m_reflectance_sensor.getLeftReflectanceValue();
+  }
+  
+  public double getRightReflectance() {//between 0 (white) and 1 (black)
+    return m_reflectance_sensor.getRightReflectanceValue();
   }
 
   public void resetEncoders() {
     m_leftEncoder.reset();
     m_rightEncoder.reset();
   }
-
   public int getLeftEncoderCount() {
     return m_leftEncoder.get();
   }
-
   public int getRightEncoderCount() {
     return m_rightEncoder.get();
   }
-
   public double getLeftDistanceInch() {
     return m_leftEncoder.getDistance();
   }
-
   public double getRightDistanceInch() {
     return m_rightEncoder.getDistance();
   }
-
   public double getAverageDistanceInch() {
     return (getLeftDistanceInch() + getRightDistanceInch()) / 2.0;
   }
@@ -98,6 +132,7 @@ public class Drivetrain extends SubsystemBase {
    *
    * @return The acceleration of the XRP along the Y-axis in Gs
    */
+  
   public double getAccelY() {
     return m_accelerometer.getY();
   }
@@ -107,6 +142,7 @@ public class Drivetrain extends SubsystemBase {
    *
    * @return The acceleration of the XRP along the Z-axis in Gs
    */
+  
   public double getAccelZ() {
     return m_accelerometer.getZ();
   }
@@ -116,6 +152,7 @@ public class Drivetrain extends SubsystemBase {
    *
    * @return The current angle of the XRP in degrees
    */
+  
   public double getGyroAngleX() {
     return m_gyro.getAngleX();
   }
@@ -125,6 +162,7 @@ public class Drivetrain extends SubsystemBase {
    *
    * @return The current angle of the XRP in degrees
    */
+  
   public double getGyroAngleY() {
     return m_gyro.getAngleY();
   }
@@ -134,6 +172,7 @@ public class Drivetrain extends SubsystemBase {
    *
    * @return The current angle of the XRP in degrees
    */
+  
   public double getGyroAngleZ() {
     return m_gyro.getAngleZ();
   }
@@ -146,5 +185,18 @@ public class Drivetrain extends SubsystemBase {
   @Override
   public void periodic() {
     // This method will be called once per scheduler run
+    SmartDashboard.putNumber("rangeFinder distance (in)", getRangefinderDistanceInch());
+    SmartDashboard.putNumber("left reflectance", getLeftReflectance());
+    SmartDashboard.putNumber("right reflectance", getRightReflectance());
+    SmartDashboard.putNumber("left encoder count", getLeftEncoderCount());
+    SmartDashboard.putNumber("right encoder count", getRightEncoderCount());
+    SmartDashboard.putNumber("left encoder distance (in)", getLeftDistanceInch());
+    SmartDashboard.putNumber("right encoder distance (in)", getRightDistanceInch());
+    SmartDashboard.putNumber("Accel X", getAccelX());
+    SmartDashboard.putNumber("Accel Y", getAccelY());
+    SmartDashboard.putNumber("Accel Z", getAccelZ());
+    SmartDashboard.putNumber("Gyro Angle X", getGyroAngleX());
+    SmartDashboard.putNumber("Gyro Angle Y", getGyroAngleY());
+    SmartDashboard.putNumber("Gyro Angle Z", getGyroAngleZ());
   }
 }
